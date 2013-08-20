@@ -1,9 +1,14 @@
+require 'active_model'
+
 module YamlRecord
   class Base
     attr_accessor :attributes, :is_created, :is_destroyed
 
-    include ActiveSupport::Callbacks
-    define_callbacks :before_save, :after_save, :before_destroy, :after_destroy, :before_validation, :before_create, :after_create
+    include ActiveModel::Conversion
+    include ActiveModel::Validations
+    include ActiveModel::Callbacks
+
+    define_model_callbacks :create
 
     before_create :set_id!
 

@@ -1,7 +1,7 @@
 require 'active_support/core_ext/kernel'
 require 'active_support/core_ext/class'
 require 'active_support/core_ext/hash'
-require 'active_support/secure_random'
+require 'securerandom'
 require 'active_support/callbacks'
 require 'yaml'
 
