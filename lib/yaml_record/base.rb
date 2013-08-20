@@ -7,8 +7,9 @@ module YamlRecord
     include ActiveModel::Conversion
     include ActiveModel::Validations
     include ActiveModel::Callbacks
+    include ActiveModel::Validations::Callbacks
 
-    define_model_callbacks :create
+    define_model_callbacks :create, :save, :destroy, :update, :validation, :initialize
 
     before_create :set_id!
 
@@ -60,8 +61,8 @@ module YamlRecord
     #   @post.save => true
     #
     def save
-      run_callbacks(:before_save)
-      run_callbacks(:before_create) unless self.is_created
+      run_callbacks(:save) { false }
+      run_callbacks(:create) { false } unless self.is_created
 
       existing_items = self.class.all
       if self.new_record?
@@ -75,8 +76,8 @@ module YamlRecord
       raw_data = existing_items ? existing_items.map { |item| item.persisted_attributes } : []
       self.class.write_contents(raw_data) if self.valid?
 
-      run_callbacks(:after_create) unless self.is_created
-      run_callbacks(:after_save)
+      run_callbacks(:create) { true } unless self.is_created
+      run_callbacks(:save) { true }
       true
     rescue IOError
       false
@@ -157,11 +158,11 @@ module YamlRecord
     #   Post.all.size => 0
     #
     def destroy
-      run_callbacks(:before_destroy)
+      run_callbacks(:destroy) { false }
       new_data = self.class.all.reject { |item| item.persisted_attributes == self.persisted_attributes }.map { |item| item.persisted_attributes }
       self.class.write_contents(new_data)
       self.is_destroyed = true
-      run_callbacks(:after_destroy)
+      run_callbacks(:destroy) { true }
       true
     rescue IOError
       false
@@ -406,7 +407,7 @@ module YamlRecord
     # Protected method, not called during usage
     #
     def set_id!
-      self.id = ActiveSupport::SecureRandom.hex(15)
+      self.id = SecureRandom.hex(15)
     end
   end
 end
