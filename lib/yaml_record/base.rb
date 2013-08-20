@@ -64,7 +64,7 @@ module YamlRecord
       run_callbacks(:save) { false }
       run_callbacks(:create) { false } unless self.is_created
 
-      existing_items = self.class.all
+      existing_items = self.class.all(dynamic_source)
       if self.new_record?
         existing_items << self
       else # update existing record
@@ -74,7 +74,7 @@ module YamlRecord
       end
 
       raw_data = existing_items ? existing_items.map { |item| item.persisted_attributes } : []
-      self.class.write_contents(raw_data) if self.valid?
+      self.class.write_contents(dynamic_source, raw_data) if self.valid?
 
       run_callbacks(:create) { true } unless self.is_created
       run_callbacks(:save) { true }
@@ -160,7 +160,7 @@ module YamlRecord
     def destroy
       run_callbacks(:destroy) { false }
       new_data = self.class.all.reject { |item| item.persisted_attributes == self.persisted_attributes }.map { |item| item.persisted_attributes }
-      self.class.write_contents(new_data)
+      self.class.write_contents(dynamic_source, new_data)
       self.is_destroyed = true
       run_callbacks(:destroy) { true }
       true
@@ -237,8 +237,8 @@ module YamlRecord
     #   Post.find_by_attribute(:foo, "bar")         => @post
     #   Post.find_by_attribute(:some_list, "item")  => @post
     #
-    def self.find_by_attribute(attribute, expected_value)
-      self.all.find do |record|
+    def self.find_by_attribute(dynamic_source='default', attribute, expected_value)
+      self.all(dynamic_source).find do |record|
         value = record.send(attribute) if record.respond_to?(attribute)
         value.is_a?(Array) ?
           value.include?(expected_value) :
@@ -255,8 +255,8 @@ module YamlRecord
       #
       #   Post.find_by_id("a1b2c3")  => @post
       #
-      def find_by_id(value)
-        self.find_by_attribute(:id, value)
+      def find_by_id(dynamic_source='default', value)
+        self.find_by_attribute(dynamic_source, :id, value)
       end
       alias :find :find_by_id
     end
@@ -269,8 +269,8 @@ module YamlRecord
     #   Post.all  => [@post1, @post2, ...]
     #   Post.all(true) => (...force reload...)
     #
-    def self.all
-      raw_items = self.adapter.read(self.source) || []
+    def self.all(dynamic_source='default')
+      raw_items = self.adapter.read(self.source, dynamic_source, self.source_file_name) || []
       raw_items.map { |item| self.new(item.merge(:persisted => true)) }
     end
 
@@ -282,8 +282,8 @@ module YamlRecord
     #   Post.last  => @post6
     #   Post.last(3) => [@p4, @p5, @p6]
     #
-    def self.last(limit=1)
-      limit == 1 ? self.all.last : self.all.last(limit)
+    def self.last(dynamic_source='default', limit=1)
+      limit == 1 ? self.all(dynamic_source).last : self.all(dynamic_source).last(limit)
     end
 
     # Find first YamlRecord instance given a limit
@@ -294,8 +294,8 @@ module YamlRecord
     #   Post.first  => @post
     #   Post.first(3) => [@p1, @p2, @p3]
     #
-    def self.first(limit=1)
-      limit == 1 ? self.all.first : self.all.first(limit)
+    def self.first(dynamic_source='default', limit=1)
+      limit == 1 ? self.all(dynamic_source).first : self.all(dynamic_source).first(limit)
     end
 
     # Initializes YamlRecord instance given an attribute hash and saves afterwards
@@ -356,7 +356,19 @@ module YamlRecord
     #   end
     #
     def self.source(file=nil)
-      file ? @file = (file.to_s + ".yml") : @file
+      file ? @file = (file.to_s) : @file
+    end
+
+    # Declares source_file_name for YamlRecord class
+    #
+    # === Example:
+    #
+    #   class Post < YamlRecord::Base
+    #     source_file_name "file_name"
+    #   end
+    #
+    def self.source_file_name(source_file_name=nil)
+      source_file_name ? @source_file_name = (source_file_name.to_s + ".yml") : @source_file_name
     end
 
     # Overrides equality to match if matching ids
@@ -381,8 +393,8 @@ module YamlRecord
     #
     #   Post.write_content([{ :foo => "bar"}, { :foo => "baz"}, ...]) # writes to source file
     #
-    def self.write_contents(raw_data)
-      self.adapter.write(self.source, raw_data)
+    def self.write_contents(dynamic_source, raw_data)
+      self.adapter.write(self.source, self.source_file_name, dynamic_source, raw_data)
       @records = nil
     end
 
